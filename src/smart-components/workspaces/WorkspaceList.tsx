@@ -4,6 +4,7 @@ import messages from '../../Messages';
 import { ContentHeader } from '@patternfly/react-component-groups';
 import { PageSection } from '@patternfly/react-core';
 import WorkspaceListTable from './WorkspaceListTable';
+import ManagedSelector from './managed-selector/ManagedSelector';
 
 const WorkspaceList = () => {
   const intl = useIntl();
@@ -20,6 +21,8 @@ const WorkspaceList = () => {
         }}
       />
       <PageSection>
+        {/* TODO remove me - testing workspace permissions */}
+        <ManagedSelector withPermissions={true}/>
         <WorkspaceListTable />
       </PageSection>
     </React.Fragment>

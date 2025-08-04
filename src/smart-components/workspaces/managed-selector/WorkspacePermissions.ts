@@ -42,6 +42,6 @@ export const canViewWorkspaceById = (workspaceId: string, workspacePermissions: 
   return (
     !!workspacePermissions[WorkspacePermissions.AllPermission] ||
     (!!workspacePermissions[WorkspacePermissions.ReadPermission] &&
-      workspacePermissions[WorkspacePermissions.ReadPermission].some((item) => item.attributeFilter.value.includes(workspaceId)))
+      workspacePermissions[WorkspacePermissions.ReadPermission].some((item) => item.attributeFilter?.value?.includes(workspaceId)))
   );
 };
