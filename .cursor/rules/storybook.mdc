@@ -1,0 +1,1159 @@
+---
+type: auto_attached
+description: "Storybook story development guidelines including component documentation, user interaction testing, play functions, feature flag handling, and story organization standards."
+patterns:
+  - "**/*.stories.tsx"
+  - "**/*.stories.ts"
+tags:
+  - storybook
+---
+
+# Storybook Development Guidelines
+## Quick Reference (AI Priority)
+
+### Story Types & Patterns
+| Component Type | Meta Tags | Default Story | Other Stories |
+|---------------|-----------|---------------|---------------|
+| Presentational | `['autodocs']` | Standard story | Standard stories |
+| Container | `['container-name']` | `tags: ['autodocs']` + directory | MSW only, no docs |
+
+### Container Story Checklist
+- [ ] Meta: NO autodocs tag (`tags: ['container-name']`)
+- [ ] Default story: `tags: ['autodocs']` + story directory links
+- [ ] All stories: MSW handlers (NEVER `storeState`)
+- [ ] Test real API orchestration, not pre-populated Redux
+
+### Critical Rules
+| Rule | Presentational | Container |
+|------|---------------|-----------|
+| API Testing | Props/args | MSW handlers |
+| Redux Testing | N/A | Real orchestration |
+| Autodocs | All stories | Default only |
+| MSW Conflicts | Rare | Prevented by single autodocs |
+
+### Testing Imports (REQUIRED)
+```typescript
+import { userEvent, within, expect, fn, waitFor } from 'storybook/test';
+// NEVER: @storybook/test or individual packages
+
+⚠️ **ALWAYS** `await` your `expect` calls inside a play function:
+```typescript
+await expect(canvas.findByText('Save')).resolves.toBeInTheDocument();
+```
+This is required so that results appear correctly in Storybook’s **Interactions** panel and so the test runner can report assertion failures reliably.
+```
+
+### Modal Testing Pattern
+```typescript
+// ✅ Modals render to document.body (portal)
+const modal = screen.getByRole('dialog');  // NOT canvas.getByRole
+expect(within(modal).getByText('Title')).toBeInTheDocument();
+```
+
+
+## Storybook Configuration Overview
+
+Our Storybook setup uses **Storybook 9.x** with React and Webpack 5, providing a comprehensive development and testing environment.
+
+### Core Configuration
+- **Framework**: `@storybook/react-webpack5` with SWC compiler for fast builds
+- **Stories Location**: All `*.stories.@(js|jsx|mjs|ts|tsx)` files under `src/` directory
+- **Documentation**: MDX files supported in `src/docs/` and throughout the project
+- **Static Assets**: Served from `./static` directory
+
+### Key Addons & Features
+- **@storybook/addon-docs**: Automatic documentation generation with `tags: ['autodocs']`
+- **@storybook/addon-webpack5-compiler-swc**: Fast compilation using SWC
+- **msw-storybook-addon**: API mocking capabilities for realistic story testing
+- **MSW Integration**: Automatically initialized for all stories with `mswLoader`
+
+### Development Context Providers
+All stories are automatically wrapped with essential context providers:
+- **IntlProvider**: Internationalization with locale data from `src/locales/data.json`
+- **PermissionsContext**: User access control simulation
+- **ChromeProvider**: Red Hat Cloud Services chrome environment simulation
+- **FeatureFlagsProvider**: Feature flag testing capabilities
+
+### Default Story Parameters
+Every story automatically inherits these default configurations:
+```typescript
+parameters: {
+  actions: { argTypesRegex: '^on.*' }, // Auto-detect event handlers
+  permissions: {
+    userAccessAdministrator: false,
+    orgAdmin: false,
+  },
+  chrome: {
+    environment: 'prod',
+  },
+  featureFlags: {
+    'platform.rbac.itless': false,
+  },
+}
+```
+
+### Custom Webpack Configuration
+- **SCSS Support**: Automatic compilation of `.scss` files with style-loader, css-loader, and sass-loader
+- **Hook Mocking**: Development-specific versions of Red Hat hooks:
+  - `@redhat-cloud-services/frontend-components/useChrome` → `.storybook/hooks/useChrome`
+- `@unleash/proxy-client-react` → `.storybook/hooks/unleash`
+
+### TypeScript Integration
+- **react-docgen-typescript**: Automatic prop documentation generation
+- **Type Safety**: Full TypeScript support with component type extraction
+- **Prop Filtering**: Excludes node_modules props from documentation
+
+### Testing Configuration
+- **Test Runner**: `@storybook/test-runner` with custom configuration
+- **Timeout**: 20 seconds for slower interactive stories
+- **Error Detection**: Automatic console error checking after each story
+- **Skip Tags**: Stories tagged with `skip-test` are excluded from test runs
+- **MSW Integration**: API mocking works seamlessly in test environment
+
+### Custom Styling
+- **PatternFly Integration**: Core CSS automatically loaded (`@patternfly/react-core/dist/styles/base.css`)
+- **Custom Theme**: Enhanced styling in `.storybook/storybook.css` with:
+  - Improved documentation layout and typography
+  - Dark mode support with `prefers-color-scheme`
+  - Responsive design for mobile viewing
+  - Enhanced code block and table styling
+  - Accessibility focus improvements
+  - Print-friendly styles
+
+### Interactive Controls & Args
+Stories can override default context values through args:
+- `orgAdmin`, `userAccessAdministrator`: Permission controls
+- `environment`: Chrome environment simulation
+- Feature flag controls: Direct boolean controls for testing different states
+
+## Story Development Principles
+
+### Focus on the Component, Not Wrappers
+- Stories should document the **actual component** being developed, not wrappers
+- Set `component: ActualComponent` in meta object
+- Avoid complex wrapper components like `TableToolbarView` in stories
+
+### Title Generation (FORBIDDEN)
+- **NEVER** use custom `title` in meta configuration
+- **ALWAYS** let Storybook's automatic title generation do the work
+- Automatic titles are generated from file paths and are consistent across the project
+
+### File Naming Requirements
+- Component files: `ComponentName.tsx` (MUST be capitalized and reflect component name)
+- Story files: `ComponentName.stories.tsx` (MUST be capitalized and reflect component name)
+
+### Story Requirements (MANDATORY)
+- **REQUIRED**: All **presentational component** stories MUST use `tags: ['autodocs']` by default
+- **REQUIRED**: All user interactions in components MUST have play functions to test them
+- Stories must test actual user workflows, not just trigger events
+- Cover all interactive states: hover, focus, disabled, error, etc.
+
+### Container Story Requirements (SPECIAL PATTERN)
+- **Container stories** with multiple stories should use **single autodocs pattern**:
+  - Remove `autodocs` from meta: `tags: ['container-name']` (NO autodocs)
+  - Add `autodocs` only to default story: `tags: ['autodocs']`
+  - Default story must include comprehensive directory of all other stories with clickable links
+- **NEVER** use `storeState` to pre-populate Redux in container stories
+- **ALWAYS** use real API orchestration with MSW handlers for container testing
+
+### Story Structure Template
+
+#### Presentational Component Template
+```typescript
+const meta: Meta<typeof ComponentName> = {
+  component: ComponentName,  // The actual component being documented
+  tags: ['autodocs'],       // REQUIRED: Presentational components use autodocs tag
+  parameters: {
+    docs: {
+      description: {
+        component: `Clear description of component purpose and usage`
+      }
+    }
+  }
+};
+```
+
+#### Container Component Template (Multiple Stories)
+```typescript
+const meta: Meta<typeof ContainerName> = {
+  component: ContainerName,
+  tags: ['container-name'],  // NO autodocs on meta
+  decorators: [withReduxAndRouter],
+  parameters: {
+    layout: 'fullscreen',
+    // ... other parameters
+  }
+};
+
+// Only the default story gets autodocs
+export const Default: Story = {
+  tags: ['autodocs'],  // ONLY story with autodocs
+  parameters: {
+    docs: {
+      description: {
+        story: `
+**Default View**: Complete container description with real API orchestration.
+
+## Additional Test Stories
+
+For testing specific scenarios, see these additional stories:
+
+- **[LoadingState](?path=/story/path--loading-state)**: Tests container during API loading
+- **[EmptyState](?path=/story/path--empty-state)**: Tests container with empty data
+- **[ErrorState](?path=/story/path--error-state)**: Tests container error handling
+        `,
+      },
+    },
+    msw: {
+      handlers: [
+        // Real API mocking - NO storeState
+        http.get('/api/endpoint/', () => HttpResponse.json({ data: mockData })),
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // Test real API orchestration
+  },
+};
+
+// Other stories have no docs config - just MSW and tests
+export const LoadingState: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get('/api/endpoint/', () => new Promise(() => {})), // Never resolves
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // Test loading behavior
+  },
+};
+```
+
+### User Interaction Testing Requirements
+- **REQUIRED**: All user interactions (clicks, form inputs, etc.) must have play functions
+- Play functions should test the actual user flows, not just trigger events
+- Cover all interactive states: hover, focus, disabled, error, etc.
+
+### Testing Imports (REQUIRED)
+- **ALWAYS** import testing utilities from `storybook/test` package (no @ symbol)
+- **NEVER** import from individual packages like `@storybook/testing-library` or `@storybook/jest`
+- **NEVER** use `@storybook/test` (with @ symbol) - this is incorrect
+- Standard imports: `import { userEvent, within, expect, fn } from 'storybook/test';`
+- `storybook/test` consolidates all testing utilities in modern Storybook versions
+
+⚠️ **ALWAYS** `await` your `expect` calls inside a play function:
+```typescript
+await expect(canvas.findByText('Save')).resolves.toBeInTheDocument();
+```
+This is required so that results appear correctly in Storybook’s **Interactions** panel and so the test runner can report assertion failures reliably.
+
+## Feature Flag Handling in Stories
+
+### The Problem with Feature Flag Mocking
+- **DON'T**: Rely on `parameters.unleash.flags` alone for testing feature flag logic
+- Feature flag mocking in test runners often doesn't work reliably
+- Container components need explicit feature flag simulation for proper testing
+
+### The Solution: Custom Render Components
+When components have feature flag logic, create a custom render component that simulates the exact logic:
+
+```typescript
+interface ComponentArgs {
+  isFeatureEnabled: boolean;
+  isUserEligible: boolean;
+}
+
+// Custom render component that simulates the container's feature flag logic
+const ComponentWithFeatureFlags: React.FC<ComponentArgs> = ({ isFeatureEnabled, isUserEligible }) => {
+  const shouldShowAlert = isUserEligible && !isFeatureEnabled;
+
+  return (
+    <React.Fragment>
+      {shouldShowAlert && <FeatureAlert />}
+      <MainComponent />
+    </React.Fragment>
+  );
+};
+
+const meta: Meta<ComponentArgs> = {
+  component: MainComponent,
+  argTypes: {
+    isFeatureEnabled: {
+      control: 'boolean',
+      description: 'Whether feature is enabled (platform.feature.flag)',
+      table: {
+        type: { summary: 'boolean' },
+        defaultValue: { summary: 'false' },
+      },
+    },
+    isUserEligible: {
+      control: 'boolean',
+      description: 'Whether user is eligible for feature (platform.feature.eligible)',
+      table: {
+        type: { summary: 'boolean' },
+        defaultValue: { summary: 'false' },
+      },
+    },
+  },
+  render: (args) => <ComponentWithFeatureFlags {...args} />,
+};
+
+export const WithFeatureEnabled: Story = {
+  args: {
+    isFeatureEnabled: true,
+    isUserEligible: true,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Test the feature flag logic directly
+    expect(canvas.queryByText('Feature alert text')).not.toBeInTheDocument();
+  },
+};
+```
+
+### Feature Flag Best Practices
+- **Document Logic**: Clearly explain the feature flag combinations in component docs
+- **Use Controls**: Add `argTypes` for interactive boolean controls
+- **Test All States**: Create stories for each meaningful flag combination
+- **Explicit Logic**: Don't rely on unleash mocking - implement the logic explicitly
+- **Realistic Text**: Use actual component text in assertions, not generic selectors
+
+### Common Feature Flag Patterns
+```typescript
+// Pattern 1: Simple enable/disable
+const shouldShow = isFeatureEnabled;
+
+// Pattern 2: Eligibility + enable (common for opt-in features)  
+const shouldShowAlert = isEligible && !isEnabled;
+
+// Pattern 3: Multiple conditions
+const shouldShowBeta = isBetaUser && isBetaEnabled && !isProduction;
+```
+
+## Storybook Actions & Event Handling
+
+### Automatic Actions Configuration
+- Actions are **automatically configured** for all `on*` props
+- Props starting with `on` (onClick, onChange, etc.) automatically log to Actions panel
+- **Don't use `console.log`** in story event handlers
+- **Don't use manual `action()` calls for `on*` props**
+
+### Play Functions for Testing
+```typescript
+import { userEvent, within, expect, fn } from 'storybook/test';
+
+export const ClickableStory: Story = {
+  args: {
+    onClick: fn(),  // Testable spy function
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByText('5', { selector: 'a' }));
+    await expect(args.onClick).toHaveBeenCalled();
+  }
+};
+```
+
+### Play Function Guidelines
+- **Use `fn()` for individual stories** - creates testable spy functions
+- **Use specific selectors** - `{ selector: 'a' }` to target exact elements
+- **Test both positive and negative cases**
+- **Never add play functions to comparison stories**
+
+### Args Parameter Management
+**CRITICAL**: Only remove `args` parameter if the story doesn't use it.
+
+#### When Args is Required
+```typescript
+// ✅ Story NEEDS args - testing callbacks
+play: async ({ canvasElement, args }) => {
+  // Story tests callback functions
+  expect(args.onClick).toHaveBeenCalled();
+}
+
+// ❌ WRONG - removing args breaks the test
+play: async ({ canvasElement }) => {
+  expect(args.onClick).toHaveBeenCalled(); // ReferenceError: args is not defined
+}
+```
+
+#### When Args Can Be Removed
+```typescript
+// ✅ Story doesn't use args - can remove safely
+play: async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  expect(canvas.getByText('Content')).toBeInTheDocument();
+  // No callback testing, no args needed
+}
+```
+
+#### Checking Story Dependencies
+Before removing `args` parameter, check the play function for:
+- `args.onSomething` usage (callback testing)
+- `expect(args.property)` assertions
+- Any reference to story arguments
+
+## Quality Requirements for Stories
+
+### Before Submitting Stories
+- [ ] **Check dependency versions** in `package.json` for correct API usage
+- [ ] Stories document target component, not wrappers
+- [ ] No custom `title` in meta (using autotitle)
+- [ ] All TypeScript errors resolved
+- [ ] `npm run build` passes
+- [ ] `npm run lint:js` passes (no errors, warnings OK)
+- [ ] `npm run test-storybook:ci` passes (REQUIRED after adding any story)
+- [ ] Realistic data structures used
+- [ ] PatternFly components properly integrated
+- [ ] JSX elements in arrays have `key` props
+
+### Story Testing
+- **REQUIRED**: Run `npm run test-storybook:ci` after adding any new story
+- This command tests all play functions and interactions in your stories
+- All Storybook tests must pass before considering the story complete
+- Fix any failing interactions or accessibility issues before proceeding
+
+### Story Organization
+
+#### File Structure for Good Auto-Titles
+- Place stories next to components: `ComponentName.stories.tsx`
+- Use descriptive directory names that will generate good titles
+- Example: `src/presentational-components/shared/UsersRow.stories.tsx` 
+  → Auto-title: "Presentational Components/Shared/Users Row"
+
+#### Story Naming Conventions
+- Use descriptive story names that explain the state/scenario
+- Examples: `ActiveUser`, `InactiveUser`, `NoStatus`, `Comparison`
+- Avoid generic names like `Default`, `Example`, `Basic`
+
+## Common Pitfalls to Avoid
+
+- ❌ Don't use `TableToolbarView` or complex wrappers in stories
+- ❌ Don't set custom `title` in meta object
+- ❌ Don't use `console.log` in story event handlers
+- ❌ **NEVER start the Storybook server** - Always ask the user to handle it
+
+**Goal**: Create focused, realistic, maintainable component stories that serve as documentation and testing tools. Let Storybook handle titles automatically for consistency.
+
+## Autodocs Conflicts and Solutions
+
+### The Problem: MSW Handler Conflicts in Autodocs
+When multiple container stories with MSW handlers are rendered simultaneously in autodocs, conflicts occur:
+- **MSW Issue**: Multiple handlers for same endpoint cause 500 errors
+- **Endless Loading**: Stories get stuck in loading states  
+- **Empty Canvas**: Canvas renders but stays blank
+
+### The Solution: Single Autodocs Pattern for Containers
+
+#### ❌ WRONG: All stories in autodocs
+```typescript
+const meta: Meta<typeof Container> = {
+  component: Container,
+  tags: ['autodocs'],  // ❌ All stories render in autodocs = conflicts
+};
+```
+
+#### ✅ CORRECT: Single story autodocs with directory
+```typescript
+const meta: Meta<typeof Container> = {
+  component: Container,
+  tags: ['container-name'],  // ✅ NO autodocs on meta
+};
+
+export const Default: Story = {
+  tags: ['autodocs'],  // ✅ ONLY default story in autodocs
+  parameters: {
+    docs: {
+      description: {
+        story: `
+**Default View**: Main container story with full functionality.
+
+## Additional Test Stories
+
+- **[LoadingState](?path=/story/path--loading-state)**: API loading behavior
+- **[EmptyState](?path=/story/path--empty-state)**: Empty data handling
+- **[ErrorState](?path=/story/path--error-state)**: Error state management
+        `,
+      },
+    },
+  },
+};
+
+// Other stories: NO docs config, just MSW + tests
+export const LoadingState: Story = {
+  parameters: {
+    msw: { handlers: [...] },  // No conflicts - not in autodocs
+  },
+};
+```
+
+### Benefits of Single Autodocs Pattern
+- ✅ **No MSW conflicts** - Only one story renders in autodocs
+- ✅ **All stories accessible** - Links provide navigation to all stories  
+- ✅ **Clean documentation** - Comprehensive story directory in one place
+- ✅ **Reliable testing** - All stories work independently in canvas view
+
+## Redux Integration in Storybook Stories
+
+### CRITICAL: Global Redux Provider Rule
+**IMPERATIVE**: NEVER add custom Redux providers in individual stories for ANY reason.
+
+- **Global Provider**: All stories automatically have Redux provider from `.storybook/preview.tsx`
+- **FORBIDDEN**: Creating individual `<Provider store={...}>` wrappers in stories
+- **FORBIDDEN**: Custom `createStore` or `ReducerRegistry` in individual stories  
+- **FORBIDDEN**: Decorators with Redux providers in story files
+
+#### ❌ FORBIDDEN: Custom Providers in Stories
+```typescript
+// DON'T DO THIS - Global provider already exists
+const withReduxProvider = (Story) => (
+  <Provider store={createStore(reducer)}>
+    <Story />
+  </Provider>
+);
+
+// DON'T DO THIS - No custom decorators with providers
+decorators: [withReduxProvider],
+
+// DON'T DO THIS - No manual store creation
+const store = createStore(reducer);
+```
+
+#### ✅ CORRECT: Use Global Provider + MSW
+```typescript
+// All stories automatically have Redux provider
+export const Story: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get('/api/endpoint/', () => HttpResponse.json(mockData)),
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // Test real API orchestration with global Redux
+    await waitFor(() => {
+      expect(canvas.getByText('Data')).toBeInTheDocument();
+    });
+  },
+};
+```
+
+### Why This Rule Exists
+- **Consistency**: All stories use same Redux setup as real app
+- **Performance**: No duplicate store creation overhead
+- **Maintainability**: Single source of truth for Redux configuration
+- **Testing**: Real API orchestration instead of pre-populated stores
+- **Architecture**: Matches production Redux provider pattern
+
+### Redux Store Configuration (Legacy Reference)
+- **NEVER** use `@reduxjs/toolkit` or `configureStore` - this app uses classic Redux
+- **ALWAYS** use `createStore` from the `redux` package for mock stores
+- **ALWAYS** match the actual app store structure from `src/redux/`
+
+### Container Stories: API Orchestration vs Store State (CRITICAL)
+
+#### ❌ WRONG: Pre-populating Redux with storeState
+```typescript
+// DON'T DO THIS for container stories
+export const ContainerStory: Story = {
+  parameters: {
+    storeState: {
+      userReducer: {
+        users: { data: mockUsers },  // Pre-populating Redux
+        isLoading: false,
+      },
+    },
+  },
+};
+```
+
+**Problems with storeState approach:**
+- Doesn't test real container responsibility (API orchestration)
+- Skips Redux action dispatch and reducer logic
+- Creates MSW conflicts in autodocs when multiple stories render
+- Doesn't verify the container actually works end-to-end
+- **VIOLATES GLOBAL PROVIDER RULE**: Never add custom providers!
+
+#### ✅ CORRECT: Real API Orchestration Testing
+```typescript
+// DO THIS for container stories
+export const ContainerStory: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get('/api/rbac/v1/users/', () => {
+          return HttpResponse.json({
+            data: mockUsers,
+            meta: { count: mockUsers.length },
+          });
+        }),
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // Test that container dispatches actions and Redux updates
+    await waitFor(() => {
+      expect(canvas.getByText('john.doe')).toBeInTheDocument();
+    });
+  },
+};
+```
+
+**Benefits of API orchestration:**
+- Tests complete container responsibility chain
+- Verifies Redux actions, reducers, and component integration
+- Works cleanly in autodocs (no store conflicts)
+- Catches real integration bugs
+
+### Mock Store Creation Pattern (DEPRECATED)
+**WARNING**: This pattern is DEPRECATED and FORBIDDEN. Use the global Redux provider instead.
+
+```typescript
+// ❌ DEPRECATED: Do not use this pattern anymore
+import { createStore } from "redux";
+
+const createMockStore = (initialState = {}) => {
+  const mockReducer = (state = initialState) => state;
+  return createStore(mockReducer);
+};
+
+// ❌ FORBIDDEN: Custom provider decorators
+const withProviders = (Story: StoryFn, context: StoryContext) => {
+  // This violates the global provider rule!
+  return (
+    <Provider store={store}>  {/* NEVER DO THIS */}
+      <Story />
+    </Provider>
+  );
+};
+```
+
+**Use global provider instead**: All stories automatically have Redux provider from `.storybook/preview.tsx`
+
+### Decorator Pattern for Context Providers (DEPRECATED)
+**WARNING**: This pattern is DEPRECATED and FORBIDDEN for Redux providers.
+
+```typescript
+// ❌ FORBIDDEN: Custom decorators with Redux providers
+const meta: Meta<typeof ComponentName> = {
+  component: ComponentName,
+  decorators: [withProviders], // NEVER DO THIS for Redux
+  parameters: {
+    storeState: {  // This is also deprecated
+      workspaces: mockWorkspaces,
+      isLoading: false,
+    },
+  },
+};
+```
+
+**Use global provider + MSW instead**: Focus on API testing, not pre-populated stores.
+
+## Chrome Context Enhancement
+
+### Missing Functions in Chrome Mock
+When stories fail with "chrome.someFunction is not a function", enhance the Chrome mock:
+
+```typescript
+// In .storybook/context-providers.tsx
+const mockChrome = {
+  // ... existing mock functions
+  getUserPermissions: () => Promise.resolve({
+    isOrgAdmin: chromeConfig.orgAdmin || false,
+    userAccessAdministrator: chromeConfig.userAccessAdministrator || false,
+  }),
+  // Add other missing functions as needed
+};
+```
+
+## Modal Testing in Storybook
+
+### Critical Portal Rendering Knowledge
+**IMPORTANT**: Modals are rendered to `document.body` via React portals, NOT within the Storybook canvas.
+
+### Correct Modal Testing Pattern
+```typescript
+import { screen, within } from 'storybook/test';
+
+export const ModalStory: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    
+    // ✅ Interact with triggers in canvas
+    const openButton = canvas.getByRole('button', { name: /open modal/i });
+    await userEvent.click(openButton);
+    
+    // ✅ Find modal content in document.body (via portal)
+    const modal = screen.getByRole('dialog');
+    expect(modal).toBeInTheDocument();
+    
+    // ✅ Test modal content using within(modal)
+    expect(within(modal).getByText(/modal title/i)).toBeInTheDocument();
+    
+    // ✅ Test modal interactions
+    const confirmButton = within(modal).getByRole('button', { name: /confirm/i });
+    await userEvent.click(confirmButton);
+    
+    // ✅ Verify callbacks were called
+    expect(args.onConfirm).toHaveBeenCalled();
+  },
+};
+```
+
+### Common Modal Testing Mistakes
+- ❌ `canvas.getByRole('dialog')` - Modal not in canvas
+- ❌ `canvasElement.querySelector('[role="dialog"]')` - Wrong scope
+- ✅ `screen.getByRole('dialog')` - Modal is in document.body
+- ✅ `within(modal).getByText()` - Scope searches to modal content
+
+### Modal Story Args Requirements  
+**Critical**: Modal stories that test callbacks MUST include `args` parameter:
+```typescript
+play: async ({ canvasElement, args }) => {
+  // args is required when testing modal callbacks
+  expect(args.onConfirm).toHaveBeenCalled();
+}
+```
+
+### Container Modal Integration Testing
+For container components that manage modal state:
+```typescript
+export const ModalIntegration: Story = {
+  parameters: {
+    storeState: { /* Redux state for container */ },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    
+    // Trigger action in container UI
+    await userEvent.click(canvas.getByRole('button', { name: /delete/i }));
+    
+    // Modal appears via container state management
+    const modal = screen.getByRole('dialog');
+    expect(within(modal).getByText(/confirm deletion/i)).toBeInTheDocument();
+  },
+};
+```
+
+## Story Verification Requirements
+
+### ALWAYS Verify Before Continuing
+- **REQUIRED**: Test stories immediately after creation using tags
+- **REQUIRED**: Fix all failing tests before moving to next component
+- **NEVER** create multiple stories without verifying each one works
+
+### Verification Process
+1. Add descriptive tags to stories for targeted testing:
+   ```typescript
+   const meta: Meta<typeof ComponentName> = {
+     component: ComponentName,
+     tags: ["autodocs", "component-name"], // Add specific tag
+   };
+   ```
+
+2. Test specific stories with tags:
+   ```bash
+   npm run test-storybook:ci -- --includeTags="component-name"
+   ```
+
+3. Fix any failing tests before proceeding to next component
+
+### IntlMessage Parameter Requirements
+- **ALWAYS** check message definitions for required parameters
+- **ALWAYS** provide `count` parameter when messages expect it:
+  ```typescript
+  intl.formatMessage(messages.workspaceNotEmptyWarning, { count: 1 })
+  ```
+
+## Common Redux/Storybook Errors and Fixes
+
+### Error: "configureStore is not a function"
+- **Cause**: Using Redux Toolkit syntax in non-toolkit app
+- **Fix**: Use `createStore` from `redux` package
+
+### Error: "chrome.getUserPermissions is not a function"  
+- **Cause**: Incomplete Chrome mock
+- **Fix**: Add missing function to `.storybook/context-providers.tsx`
+
+### Error: Missing "count" variable in message
+- **Cause**: IntlMessage expects parameters not provided
+- **Fix**: Add required parameters to `formatMessage` call
+
+
+## Testing Library Query Guidelines (MANDATORY)
+
+### Use findBy* Instead of getBy* for Async Content
+
+**CRITICAL RULE**: In Storybook play functions, ALWAYS use `findBy*` and `findAllBy*` queries instead of `getBy*` and `getAllBy*` for better test reliability with async content.
+
+#### ❌ WRONG: Synchronous getBy* queries
+```typescript
+play: async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  
+  // ❌ Fails immediately if element not found
+  expect(canvas.getByText('Loading data...')).toBeInTheDocument();
+  expect(canvas.getByRole('button')).toBeInTheDocument();
+  
+  // ❌ Synchronous queries with manual waitFor
+  await waitFor(() => {
+    expect(canvas.getByText('Data loaded')).toBeInTheDocument();
+  });
+}
+```
+
+#### ✅ CORRECT: Asynchronous findBy* queries  
+```typescript
+play: async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  
+  // ✅ Waits automatically for element to appear
+  expect(await canvas.findByText('Loading data...')).toBeInTheDocument();
+  expect(await canvas.findByRole('button')).toBeInTheDocument();
+  
+  // ✅ No waitFor wrapper needed with findBy*
+  expect(await canvas.findByText('Data loaded')).toBeInTheDocument();
+}
+```
+
+### Query Method Guidelines
+
+| Scenario | Use | Don't Use | Reason |
+|----------|-----|-----------|---------|
+| Single element (async) | `await canvas.findByText()` | `canvas.getByText()` | Waits for async content |
+| Multiple elements (async) | `await canvas.findAllByText()` | `canvas.getAllByText()` | Waits for async content |
+| Element might not exist | `canvas.queryByText()` | `canvas.getByText()` | Returns null vs throwing |
+| Multiple elements that might not exist | `canvas.queryAllByText()` | `canvas.getAllByText()` | Returns [] vs throwing |
+
+### Common Patterns and Fixes
+
+#### Pattern 1: Basic element assertion
+```typescript
+// ❌ Old synchronous pattern
+expect(canvas.getByText('Username')).toBeInTheDocument();
+
+// ✅ New asynchronous pattern  
+expect(await canvas.findByText('Username')).toBeInTheDocument();
+```
+
+#### Pattern 2: Element interaction
+```typescript
+// ❌ Old pattern
+const button = canvas.getByRole('button', { name: /submit/i });
+await userEvent.click(button);
+
+// ✅ New pattern
+const button = await canvas.findByRole('button', { name: /submit/i });
+await userEvent.click(button);
+```
+
+#### Pattern 3: Row selection with closest()
+```typescript
+// ❌ Wrong: Missing parentheses around await expression
+const row = await canvas.findByText('john.doe').closest('tr');
+
+// ✅ Correct: Proper parentheses placement
+const row = (await canvas.findByText('john.doe')).closest('tr');
+```
+
+#### Pattern 4: Multiple elements
+```typescript
+// ❌ Old pattern
+const checkboxes = canvas.getAllByRole('checkbox');
+checkboxes.forEach(checkbox => expect(checkbox).toBeChecked());
+
+// ✅ New pattern
+const checkboxes = await canvas.findAllByRole('checkbox');
+checkboxes.forEach(checkbox => expect(checkbox).toBeChecked());
+```
+
+#### Pattern 5: Remove redundant waitFor
+```typescript
+// ❌ Redundant waitFor with findBy*
+await waitFor(async () => {
+  expect(await canvas.findByText('Success')).toBeInTheDocument();
+});
+
+// ✅ findBy* already waits
+expect(await canvas.findByText('Success')).toBeInTheDocument();
+```
+
+### When to Still Use getBy*
+
+Only use synchronous `getBy*` queries in these specific cases:
+
+1. **Inside within() for already-found elements**:
+   ```typescript
+   const modal = await screen.findByRole('dialog');
+   expect(within(modal).getByText('Title')).toBeInTheDocument(); // OK: modal already exists
+   ```
+
+2. **For queryBy* non-existence checks**:
+   ```typescript
+   expect(canvas.queryByText('Should not exist')).not.toBeInTheDocument(); // OK: testing absence
+   ```
+
+3. **When element is guaranteed to exist synchronously**:
+   ```typescript
+   // OK: Static content that doesn't require API calls
+   expect(canvas.getByText('Static Label')).toBeInTheDocument();
+   ```
+
+### ESLint Integration
+
+Consider adding these ESLint rules to catch `getBy*` usage in stories:
+
+```json
+{
+  "rules": {
+    "testing-library/prefer-find-by": "error",
+    "testing-library/no-await-sync-query": "error"
+  }
+}
+```
+
+### Performance Benefits
+
+- **Faster tests**: No artificial `setTimeout` delays
+- **More reliable**: Built-in retry mechanism handles timing issues  
+- **Cleaner code**: Less `waitFor` boilerplate
+- **Better errors**: More descriptive failure messages
+
+### Handling Multiple Elements with Scoping
+
+When text appears in multiple places (bundle cards, table content, filter dropdowns), use scoping to target specific areas:
+
+#### ❌ WRONG: Global search finds multiple elements
+```typescript
+// Fails: "Found multiple elements with the text: advisor"
+expect(await canvas.findByText('advisor')).toBeInTheDocument();
+```
+
+#### ✅ CORRECT: Scope search to specific container
+```typescript
+// Target specific table content only
+const table = await canvas.findByRole('grid', { name: /permissions table/i });
+const tableContent = within(table);
+expect(await tableContent.findByText('advisor')).toBeInTheDocument();
+
+// Or target specific menu content only
+const menu = await canvas.findByRole('menu');
+const menuContent = within(menu);
+expect(await menuContent.findByText('advisor')).toBeInTheDocument();
+```
+
+#### Common Scoping Patterns
+```typescript
+// 1. Table content scoping
+const table = await canvas.findByRole('grid');
+expect(await within(table).findByText('data')).toBeInTheDocument();
+
+// 2. Modal content scoping
+const modal = screen.getByRole('dialog');
+expect(within(modal).getByText('title')).toBeInTheDocument();
+
+// 3. Bundle card scoping
+const bundleCard = await canvas.findByText('Red Hat Enterprise Linux').closest('.pf-v5-c-card');
+expect(within(bundleCard).getByText('advisor')).toBeInTheDocument();
+
+// 4. Dropdown menu scoping
+const menu = await canvas.findByRole('menu');
+expect(await within(menu).findByLabelText(/option/i)).toBeInTheDocument();
+```
+
+## Critical Storybook Testing Rules
+
+### NEVER Use getBy* in Play Functions
+**MANDATORY**: Always use `findBy*` instead of `getBy*` in Storybook play functions for better async handling.
+
+```typescript
+// ❌ NEVER do this in play functions
+const button = canvas.getByRole('button');
+const text = canvas.getByText('Hello');
+
+// ✅ ALWAYS use findBy* for async content
+const button = await canvas.findByRole('button');
+const text = await canvas.findByText('Hello');
+```
+
+## PatternFly Component Testing Patterns
+
+### PatternFly Table Role Requirements
+**CRITICAL**: PatternFly tables use `role="grid"`, not `role="table"`.
+
+#### Table Testing Patterns
+```typescript
+// ✅ PatternFly tables render with role="grid" - use findBy for async
+const table = await canvas.findByRole('grid'); // Correct for PatternFly tables
+
+// ❌ Don't use role="table" for PatternFly components
+const table = await canvas.findByRole('table'); // Wrong for PatternFly tables
+
+// ❌ NEVER use getBy* in play functions - always use findBy*
+const table = canvas.getByRole('grid'); // Wrong - use findBy instead
+
+// ✅ Fallback pattern for when unsure about table type
+const table = (await canvas.findByRole('grid').catch(() => null)) || 
+               (await canvas.findByRole('table'));
+```
+
+#### Expandable Row Testing Patterns
+**CRITICAL**: For testing expandable rows in PatternFly tables, scope queries to the nested content.
+
+```typescript
+// ✅ Testing expandable row content - scope to nested table
+export const ExpandedRowStory: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    
+    // Click to expand a row (e.g., permissions count link)
+    const expandLink = await canvas.findByText('5'); // or findByRole('button', { name: /expand/i })
+    await userEvent.click(expandLink);
+    
+    // Scope queries to the nested content within the expanded row
+    const expandedRow = within(expandLink.closest('tbody').querySelector('table'));
+    
+    // Test nested table headers and content within the scoped area
+    expect(await expandedRow.findByText('Application')).toBeInTheDocument();
+    expect(await expandedRow.findByText('Resource type')).toBeInTheDocument();
+    expect(await expandedRow.findByText('Operation')).toBeInTheDocument();
+    
+    // Test data within the nested table only
+    expect(await expandedRow.findByText('advisor')).toBeInTheDocument();
+    expect(await expandedRow.findByText('compliance')).toBeInTheDocument();
+  },
+};
+
+// ❌ Don't search globally - may find text elsewhere in the DOM
+const text = await canvas.findByText('Application'); // Wrong - too broad
+
+// ✅ Always scope to the specific expanded content
+const expandedRow = within(triggerElement.closest('tbody').querySelector('table'));
+const text = await expandedRow.findByText('Application'); // Correct - scoped search
+```
+
+### Modal Testing Requirements
+**CRITICAL**: For modal testing, add a button to open the modal with a simple label.
+
+#### Modal Story Pattern
+```typescript
+export const ModalStory: Story = {
+  args: {
+    isOpen: false, // Start with modal closed
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    
+    // Add a simple button to open the modal
+    const openButton = canvas.getByRole('button', { name: 'Open Modal' });
+    await userEvent.click(openButton);
+    
+    // Modal renders to document.body via portal
+    const modal = screen.getByRole('dialog');
+    expect(modal).toBeInTheDocument();
+    
+    // Test modal content using within(modal)
+    expect(within(modal).getByText('Modal Title')).toBeInTheDocument();
+  },
+};
+```
+
+#### Modal Button Labels
+Keep button labels simple for easy testing:
+- ✅ "Open Modal", "Edit Item", "Delete User"
+- ❌ "Click here to open the advanced configuration modal dialog"
+
+### Filter Testing Patterns
+**CRITICAL**: For testing PatternFly filter components, use proper scoping and test real UI behavior.
+
+#### Filter Interaction Pattern
+```typescript
+export const FilterStory: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    
+    // Step 1: Open filter dropdown by text content (not aria-label)
+    const filterButton = await canvas.findByText('Filter by application');
+    await userEvent.click(filterButton);
+    
+    await delay(200); // Give dropdown time to open
+    
+    // Step 2: Double scoping for complex interactions
+    const menu = await canvas.findByRole('menu');
+    const menuContent = within(menu);
+    
+    // Step 3: Target specific menuitem, then the checkbox within it
+    const advisorMenuItem = await menuContent.findByRole('menuitem', { name: /advisor/i });
+    const advisorCheckbox = within(advisorMenuItem).getByRole('checkbox');
+    await userEvent.click(advisorCheckbox);
+    
+    await delay(300); // Wait for API call
+    
+    // Step 4: Test REAL UI behavior, not assumptions
+    // ✅ Use length assertions when elements appear in multiple contexts
+    expect(await canvas.findAllByText('advisor')).toHaveLength(3); 
+    // 1. in the menu, 2. in the filter chips, 3. in the table
+    
+    // ✅ Other filter options remain in dropdown (don't disappear)
+    expect(canvas.queryByText('compliance')).toHaveLength(1);
+    expect(canvas.queryByText('vulnerability')).toHaveLength(1);
+  },
+};
+```
+
+#### Filter Testing Key Principles
+
+**Double Scoping Pattern**: For complex nested interactions
+```typescript
+// ✅ Scope to container, then to specific element
+const menu = await canvas.findByRole('menu');
+const menuContent = within(menu);
+const menuItem = await menuContent.findByRole('menuitem', { name: /option/i });
+const checkbox = within(menuItem).getByRole('checkbox');
+```
+
+**Real UI Behavior Testing**: Test what actually happens, not assumptions
+```typescript
+// ❌ Don't assume filtered options disappear completely
+expect(canvas.queryByText('compliance')).not.toBeInTheDocument(); // Wrong
+
+// ✅ Test actual behavior - options remain in filter dropdown
+expect(canvas.queryByText('compliance')).toHaveLength(1); // Correct
+```
+
+**Length Assertions**: When text appears in multiple UI contexts
+```typescript
+// ✅ When filtering, text may appear in: dropdown, filter chips, and results
+expect(await canvas.findAllByText('advisor')).toHaveLength(3);
+
+// ❌ Don't use simple presence/absence when there are multiple instances
+expect(await canvas.findByText('advisor')).toBeInTheDocument(); // Wrong - multiple elements
+```
+
+**OUIA vs TestId**: Different attributes require different selectors
+```typescript
+// ❌ Wrong - findByTestId looks for data-testid, not data-ouia-component-id
+const element = await canvas.findByTestId('Filter by application');
+
+// ✅ Correct approaches for OUIA components
+const element = await canvas.findByText('Filter by application');
+const element = await canvas.findByRole('menu');
+```
+
+### Migration Checklist
+
+When updating existing stories:
+
+- [ ] Replace `canvas.getByText()` with `await canvas.findByText()`
+- [ ] Replace `canvas.getAllByText()` with `await canvas.findAllByText()`  
+- [ ] Replace `screen.getByRole()` with `await screen.findByRole()`
+- [ ] Replace `canvas.getByRole('table')` with `canvas.getByRole('grid')` for PatternFly tables
+- [ ] Add parentheses around `await` expressions before `.closest()`: `(await canvas.findByText()).closest()`
+- [ ] Remove redundant `waitFor()` wrappers around `findBy*` queries
+- [ ] Make `waitFor` callbacks `async` if they contain `await` expressions
+- [ ] Remove unused `waitFor` imports when no longer needed
+
+

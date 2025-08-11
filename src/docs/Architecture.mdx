@@ -1,0 +1,562 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Documentation/Architecture" />
+
+# Architecture & Project Structure
+
+This document outlines the architecture, design decisions, and project organization of the RBAC UI application.
+
+## 📁 Project Structure
+
+```
+insights-rbac-ui/
+├── src/
+│   ├── components/                 # Truly shared components across features
+│   │   ├── forms/                  # FormRenderer, ModalFormTemplate
+│   │   ├── layout/                 # PageLayout
+│   │   ├── tables/                 # TableToolbarView, Toolbar
+│   │   ├── navigation/             # AppLink, AppTabs, Breadcrumbs
+│   │   ├── ui-states/              # EmptyState, LoaderPlaceholders
+│   │   ├── data-display/           # CustomDataListItem
+│   │   └── user-management/        # ActiveUsers
+│   ├── features/                   # Feature islands - organized by domain
+│   │   ├── groups/                 # Group management feature
+│   │   │   ├── add-group/          # Add group workflow
+│   │   │   ├── member/             # Group member management
+│   │   │   ├── role/               # Group role management
+│   │   │   ├── service-account/    # Group service account management
+│   │   │   ├── components/         # Group-specific presentational components
+│   │   │   ├── groups.js           # Main groups container
+│   │   │   ├── group.js            # Single group container
+│   │   │   └── *.js                # Other group containers
+│   │   ├── roles/                  # Role management feature
+│   │   │   ├── add-role/           # Add role workflow
+│   │   │   ├── add-role-permissions/ # Permission management
+│   │   │   ├── edit-role/          # Role editing
+│   │   │   ├── components/         # Role-specific presentational components
+│   │   │   └── *.js                # Role containers
+│   │   ├── users/                  # User management feature
+│   │   │   ├── add-user-to-group/  # User group assignment
+│   │   │   ├── invite-users/       # User invitation workflow
+│   │   │   ├── components/         # User-specific presentational components
+│   │   │   └── *.js/*.tsx          # User containers
+│   │   ├── workspaces/             # Workspace management feature
+│   │   │   ├── create-workspace/   # Workspace creation workflow
+│   │   │   ├── managed-selector/   # Workspace selector feature
+│   │   │   │   ├── components/     # Selector-specific components
+│   │   │   │   │   ├── WorkspaceSelector.tsx
+│   │   │   │   │   ├── WorkspaceTreeView.tsx
+│   │   │   │   │   └── WorkspaceMenuToggle.tsx
+│   │   │   │   └── *.ts            # Selector logic and stores
+│   │   │   ├── workspace-detail/   # Workspace detail feature
+│   │   │   │   ├── components/     # Detail-specific components
+│   │   │   │   │   └── AssetsCards.tsx
+│   │   │   │   └── *.tsx           # Detail containers
+│   │   │   ├── overview/           # Workspace overview feature
+│   │   │   │   ├── components/     # Overview-specific components
+│   │   │   │   │   └── EnableWorkspacesAlert.tsx
+│   │   │   │   └── WorkspacesOverview.tsx
+│   │   │   └── *.tsx               # Workspace containers
+│   │   ├── myUserAccess/           # My User Access feature
+│   │   │   ├── bundles/            # Bundle-specific logic
+│   │   │   ├── components/         # MUA-specific presentational components
+│   │   │   └── *.js                # MUA containers
+│   │   ├── access-management/      # Access management feature
+│   │   │   └── users-and-user-groups/ # User/group access management
+│   │   ├── overview/               # Overview feature
+│   │   └── quickstarts/            # Quickstarts feature
+│   ├── entries/                    # Entry points for different builds
+│   ├── helpers/                    # Business logic helpers (organized by domain)
+│   │   ├── access/                 # Access management logic
+│   │   ├── group/                  # Group management logic
+│   │   ├── role/                   # Role management logic
+│   │   ├── user/                   # User management logic
+│   │   ├── workspaces/             # Workspace management logic
+│   │   ├── service-account/        # Service account logic
+│   │   └── shared/                 # Shared helper utilities
+│   ├── hooks/                      # Custom React hooks
+│   ├── redux/                      # State management
+│   │   ├── actions/                # Redux actions
+│   │   └── reducers/               # Redux reducers
+│   ├── utilities/                  # Helper utilities and constants
+│   └── test/                       # Test utilities and mocks
+├── .storybook/                     # Storybook configuration
+├── cypress/                        # E2E tests
+└── config/                         # Build and test configuration
+```
+
+## 🏗️ Architectural Patterns
+
+### Feature Islands Architecture
+
+We follow a **Feature Islands** pattern instead of rigid smart/presentational separation:
+
+#### Feature Organization Principles
+- **Domain-driven structure** - Code organized by business domain (groups, roles, users, workspaces)
+- **Co-location** - Related components, hooks, and logic live together
+- **Practical separation** - Only extract presentational components when there's genuine reuse
+- **Nested features** - Complex features like workspaces can have sub-features with their own components
+
+```jsx
+// Feature structure example: workspaces/managed-selector/
+workspaces/
+├── managed-selector/
+│   ├── components/              # Components specific to selector feature
+│   │   ├── WorkspaceSelector.tsx
+│   │   ├── WorkspaceTreeView.tsx
+│   │   └── WorkspaceMenuToggle.tsx
+│   ├── ManagedSelector.tsx      # Main container (smart component)
+│   ├── WorkspacesStore.tsx      # Feature-specific state
+│   └── WorkspaceTreeBuilder.ts  # Feature-specific logic
+```
+
+#### When to Extract to Shared Components
+Only move components to `src/components/` when they are:
+- **Truly reusable** across multiple features
+- **Domain-agnostic** (not tied to specific business logic)
+- **Stable** (unlikely to change frequently)
+
+```jsx
+// Shared component example - genuinely reusable
+const TableToolbarView = ({ 
+  columns, 
+  filters, 
+  pagination, 
+  onFilterChange,
+  children 
+}) => {
+  // Generic table toolbar logic
+  return (
+    <Toolbar>
+      <ToolbarContent>
+        {filters && <FilterControls />}
+        {pagination && <PaginationControls />}
+        {children}
+      </ToolbarContent>
+    </Toolbar>
+  );
+};
+```
+
+#### Container Components (Feature Entry Points)
+Each feature has container components that:
+- Manage feature-specific state
+- Handle API interactions
+- Coordinate between presentational components
+- Connect to Redux when needed
+
+```jsx
+// Example: Feature container
+const Groups = () => {
+  const [groups, setGroups] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const dispatch = useDispatch();
+
+  const handleCreateGroup = async (groupData) => {
+    await dispatch(createGroup(groupData));
+    // Feature-specific logic
+  };
+
+  return (
+    <PageLayout title="Groups">
+      <GroupHeader onCreateGroup={handleCreateGroup} />
+      <GroupsTable 
+        groups={groups} 
+        loading={loading}
+        onEditGroup={handleEditGroup}
+      />
+    </PageLayout>
+  );
+};
+```
+
+### Component Development Patterns
+
+#### 1. Feature-Specific Components
+Components that only make sense within their feature:
+
+```jsx
+// src/features/groups/components/GroupHeader.tsx
+export const GroupHeader = ({ onCreateGroup, groupCount }) => (
+  <PageHeader>
+    <Title headingLevel="h1">Groups ({groupCount})</Title>
+    <Button onClick={onCreateGroup}>Create Group</Button>
+  </PageHeader>
+);
+```
+
+#### 2. Cross-Feature Components
+Components shared between related features:
+
+```jsx
+// src/features/users/components/UsersRow.tsx
+// Used by both users feature and access-management feature
+export const UsersRow = ({ user, onEdit, onDelete }) => (
+  <Tr>
+    <Td>{user.username}</Td>
+    <Td>{user.email}</Td>
+    <Td>
+      <ActionsColumn items={[
+        { title: 'Edit', onClick: () => onEdit(user) },
+        { title: 'Delete', onClick: () => onDelete(user) }
+      ]} />
+    </Td>
+  </Tr>
+);
+```
+
+#### 3. Truly Shared Components
+Generic, reusable components in `src/components/`:
+
+```jsx
+// src/components/ui-states/EmptyState.tsx
+export const EmptyState = ({ 
+  icon, 
+  title, 
+  description, 
+  primaryAction,
+  secondaryActions 
+}) => (
+  <EmptyStatePanel>
+    <EmptyStateIcon icon={icon} />
+    <Title>{title}</Title>
+    <EmptyStateBody>{description}</EmptyStateBody>
+    <EmptyStateActions>
+      {primaryAction}
+      {secondaryActions}
+    </EmptyStateActions>
+  </EmptyStatePanel>
+);
+```
+
+### State Management
+
+We use **Redux** with feature-based organization:
+
+```javascript
+// State shape organized by domain
+{
+  groups: {
+    byId: { 1: { id: 1, name: "Admins" } },
+    allIds: [1, 2, 3],
+    loading: false,
+    error: null
+  },
+  users: {
+    byId: { 1: { id: 1, username: "john.doe" } },
+    allIds: [1, 2, 3],
+    loading: false,
+    error: null
+  },
+  workspaces: {
+    byId: { 1: { id: 1, name: "Production" } },
+    tree: { /* hierarchical structure */ },
+    loading: false,
+    error: null
+  }
+}
+```
+
+### Helper Organization
+
+Business logic helpers are organized by domain matching the feature structure:
+
+```javascript
+// Example: Group helper
+// src/helpers/group/group-helper.js
+export const fetchGroups = (params) => {
+  return instance.get('/groups', { params });
+};
+
+export const transformGroupData = (groups) => {
+  return groups.map(group => ({
+    ...group,
+    memberCount: group.principalCount || 0,
+    roleCount: group.roleCount || 0
+  }));
+};
+
+export const validateGroupName = (name) => {
+  return name && name.length >= 3 && name.length <= 50;
+};
+```
+
+## 🔌 Integration Architecture
+
+### Module Federation
+
+Components are exposed for consumption by other applications:
+
+```javascript
+// fec.config.js - Module federation setup
+module.exports = {
+  moduleFederation: {
+    exposes: {
+      './CreateWorkspaceWizardModule': './src/features/workspaces/create-workspace/CreateWorkspaceWizardModule.tsx',
+      './Workspaces/ManagedSelector': './src/features/workspaces/components/managed-selector/ManagedSelector.tsx',
+      './Workspaces/WorkspaceSelector': './src/features/workspaces/components/managed-selector/components/WorkspaceSelector.tsx',
+    }
+  }
+};
+```
+
+### Red Hat Console Integration
+
+Our application integrates with the Red Hat Console platform:
+
+```javascript
+// Chrome integration
+const chrome = useChrome();
+const environment = chrome.getEnvironment();
+const isProd = chrome.isProd();
+const user = chrome.getUser();
+```
+
+### API Architecture
+
+We interact with multiple backend services through domain-specific helpers:
+
+```javascript
+// API helper pattern organized by domain
+export const rbacAPI = {
+  getRoles: (params) => instance.get('/roles', { params }),
+  createRole: (data) => instance.post('/roles', data),
+  updateRole: (id, data) => instance.put(`/roles/${id}`, data),
+  deleteRole: (id) => instance.delete(`/roles/${id}`)
+};
+
+export const workspacesAPI = {
+  getWorkspaces: (params) => instance.get('/workspaces', { params }),
+  createWorkspace: (data) => instance.post('/workspaces', data),
+  moveWorkspace: (id, parentId) => 
+    instance.patch(`/workspaces/${id}`, { parent_id: parentId })
+};
+```
+
+## 🎯 Design Patterns & Best Practices
+
+### Component Patterns
+
+#### 1. Feature Hooks
+Encapsulate feature-specific logic:
+
+```jsx
+// src/features/groups/useGroups.js
+const useGroups = () => {
+  const [groups, setGroups] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const dispatch = useDispatch();
+  
+  const fetchGroups = useCallback(async (filters) => {
+    setLoading(true);
+    try {
+      const response = await groupHelper.fetchGroups(filters);
+      setGroups(response.data);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  
+  const createGroup = useCallback(async (groupData) => {
+    const newGroup = await dispatch(createGroupAction(groupData));
+    setGroups(prev => [...prev, newGroup]);
+    return newGroup;
+  }, [dispatch]);
+  
+  return { groups, loading, fetchGroups, createGroup };
+};
+```
+
+#### 2. Compound Components
+For complex UI patterns within features:
+
+```jsx
+// src/features/workspaces/components/WorkspaceSelector.tsx
+const WorkspaceSelector = ({ children, ...props }) => (
+  <Dropdown {...props}>
+    {children}
+  </Dropdown>
+);
+
+WorkspaceSelector.Toggle = WorkspaceMenuToggle;
+WorkspaceSelector.Tree = WorkspaceTreeView;
+
+// Usage
+<WorkspaceSelector onSelect={handleSelect}>
+  <WorkspaceSelector.Toggle />
+  <WorkspaceSelector.Tree workspaces={workspaces} />
+</WorkspaceSelector>
+```
+
+#### 3. Higher-Order Components (HOCs)
+Used for cross-cutting concerns:
+
+```jsx
+const withPermissions = (permissions) => (Component) => {
+  return (props) => {
+    const userPermissions = usePermissions();
+    const hasPermission = permissions.every(p => 
+      userPermissions.includes(p)
+    );
+    
+    return hasPermission ? <Component {...props} /> : <AccessDenied />;
+  };
+};
+
+// Applied to feature containers
+export default withPermissions(['rbac:groups:read'])(Groups);
+```
+
+### Error Handling
+
+Comprehensive error handling at multiple levels:
+
+```javascript
+// Feature-level error handling
+const GroupManagement = () => {
+  const [error, setError] = useState(null);
+  
+  const handleError = useCallback((error, context) => {
+    console.error(`Groups Error (${context}):`, error);
+    setError({
+      message: error.message || 'An unexpected error occurred',
+      context,
+      timestamp: new Date()
+    });
+  }, []);
+
+  const handleCreateGroup = async (groupData) => {
+    try {
+      await groupHelper.createGroup(groupData);
+    } catch (error) {
+      handleError(error, 'create-group');
+    }
+  };
+
+  if (error) {
+    return <InlineError error={error} onRetry={() => setError(null)} />;
+  }
+
+  return <GroupsList onCreateGroup={handleCreateGroup} />;
+};
+```
+
+## 🧪 Testing Architecture
+
+### Testing Strategy
+
+1. **Unit Tests** - Individual components and functions
+2. **Integration Tests** - Feature interactions
+3. **E2E Tests** - Full user workflows
+4. **Visual Tests** - Storybook story testing
+
+### Storybook Testing with MSW
+
+We use Mock Service Worker (MSW) for realistic API mocking in stories:
+
+```javascript
+// src/test/msw-handlers.ts
+export const handlers = [
+  rest.get('/api/workspaces', (req, res, ctx) => {
+    return res(
+      ctx.json({
+        data: [
+          { id: 1, name: 'Production', parent_id: null },
+          { id: 2, name: 'Development', parent_id: 1 }
+        ]
+      })
+    );
+  })
+];
+
+// .storybook/preview.tsx
+import { initialize, mswDecorator } from 'msw-storybook-addon';
+import { handlers } from '../src/test/msw-handlers';
+
+initialize({ handlers });
+
+export const decorators = [mswDecorator];
+```
+
+### Interactive Story Testing
+
+Stories include play functions for automated interaction testing:
+
+```javascript
+// src/features/workspaces/components/managed-selector/ManagedSelector.stories.tsx
+export const SelectionCallback = {
+  args: {
+    onSelectionChange: fn(),
+    initialSelectedWorkspace: mockWorkspaces[0]
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    
+    // Test initial selection
+    expect(args.onSelectionChange).toHaveBeenCalledWith(mockWorkspaces[0]);
+    
+    // Test workspace selection
+    const toggle = await canvas.findByRole('button', { name: /workspace selector/i });
+    await userEvent.click(toggle);
+    
+    const workspaceOption = await canvas.findByText('Development Environment');
+    await userEvent.click(workspaceOption);
+    
+    // Verify callback was called with correct data
+    expect(args.onSelectionChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 2,
+        name: 'Development Environment'
+      })
+    );
+  }
+};
+```
+
+## 🚀 Performance Considerations
+
+### Code Splitting
+
+Route-based and feature-based splitting:
+
+```javascript
+// Route-based splitting
+const Groups = lazy(() => import('./features/groups/groups'));
+const Roles = lazy(() => import('./features/roles/roles'));
+const Workspaces = lazy(() => import('./features/workspaces/WorkspaceList'));
+
+// Feature-based splitting for large features
+const WorkspaceCreation = lazy(() => 
+  import('./features/workspaces/create-workspace/CreateWorkspaceWizard')
+);
+```
+
+### Bundle Optimization
+
+- **Tree shaking** for unused code elimination
+- **Dynamic imports** for feature-based splitting
+- **Asset optimization** for images and styles
+- **Module federation** for cross-application sharing
+
+## 🔧 Development Workflow
+
+### Local Development
+
+1. **Start development server**: `npm start`
+2. **Run tests**: `npm test`
+3. **Start Storybook**: `npm run storybook`
+4. **Run E2E tests**: `npm run test:e2e`
+5. **Run story tests**: `npm run test-storybook:ci`
+
+### Code Quality Tools
+
+- **ESLint** - JavaScript/TypeScript linting
+- **Prettier** - Code formatting  
+- **TypeScript** - Type safety
+- **Jest** - Unit testing
+- **Cypress** - E2E testing
+- **Storybook Test Runner** - Visual regression testing
+
+---
+
+This feature islands architecture provides better code organization, improved developer experience, and more maintainable structure while following modern React patterns and practices. 

@@ -6,16 +6,16 @@ import configureStore from 'redux-mock-store';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { render } from '@testing-library/react';
 import promiseMiddleware from 'redux-promise-middleware';
-import GroupRoles from '../../../../smart-components/group/role/group-roles';
+import GroupRoles from '../../../../features/groups/role/group-roles';
 import notificationsMiddleware from '@redhat-cloud-services/frontend-components-notifications/notificationsMiddleware';
-import { rolesInitialState } from '../../../../redux/reducers/role-reducer';
-import { groupsInitialState } from '../../../../redux/reducers/group-reducer';
+import { rolesInitialState } from '../../../../redux/roles/reducer';
+import { groupsInitialState } from '../../../../redux/groups/reducer';
 
-import * as GroupActions from '../../../../redux/actions/group-actions';
-import { FETCH_ROLES_FOR_GROUP, FETCH_SYSTEM_GROUP } from '../../../../redux/action-types';
+import * as GroupActions from '../../../../redux/groups/actions';
+import { FETCH_ROLES_FOR_GROUP, FETCH_SYSTEM_GROUP } from '../../../../redux/groups/action-types';
 
-jest.mock('../../../../redux/actions/group-actions', () => {
-  const actual = jest.requireActual('../../../../redux/actions/group-actions');
+jest.mock('../../../../redux/groups/actions', () => {
+  const actual = jest.requireActual('../../../../redux/groups/actions');
   return {
     __esModule: true,
     ...actual,
@@ -42,74 +42,74 @@ describe('<GroupRoles />', () => {
 
     initialProps = {};
     mockStore = configureStore(middlewares);
-    (emptyState = {
+    emptyState = {
       roleReducer: {
         ...rolesInitialState,
       },
       groupReducer: {
         ...groupsInitialState,
       },
-    }),
-      (initialState = {
-        roleReducer: {
-          ...rolesInitialState,
-          isLoading: false,
-          roles: [],
-        },
-        groupReducer: {
-          ...groupsInitialState,
-          isLoading: false,
-          groups: {
-            identity: {
-              user: {
-                is_org_admin: true,
-              },
+    };
+    initialState = {
+      roleReducer: {
+        ...rolesInitialState,
+        isLoading: false,
+        roles: [],
+      },
+      groupReducer: {
+        ...groupsInitialState,
+        isLoading: false,
+        groups: {
+          identity: {
+            user: {
+              is_org_admin: true,
             },
           },
-          systemGroup: {
-            uuid: '123',
-            name: 'Test group',
-            description: 'Description',
-            platform_default: true,
-            roleCount: 11,
-            roles: [
-              {
-                uuid: '123',
-                name: 'User role',
-                description: 'Description',
-                modified: '2020-03-31T19:06:06.682885Z',
-                system: true,
-                platform_default: true,
-              },
-            ],
-          },
-          selectedGroup: {
-            addRoles: {
-              roles: [],
-              pagination: {
-                count: 1,
-                limit: 10,
-                offset: 0,
-              },
-            },
-            uuid: '123',
-            name: 'Test group',
-            description: 'Description',
-            platform_default: true,
-            roleCount: 11,
-            roles: [
-              {
-                uuid: '123',
-                name: 'User role',
-                description: 'Description',
-                modified: '2020-03-31T19:06:06.682885Z',
-                system: true,
-                platform_default: true,
-              },
-            ],
-          },
         },
-      });
+        systemGroup: {
+          uuid: '123',
+          name: 'Test group',
+          description: 'Description',
+          platform_default: true,
+          roleCount: 11,
+          roles: [
+            {
+              uuid: '123',
+              name: 'User role',
+              description: 'Description',
+              modified: '2020-03-31T19:06:06.682885Z',
+              system: true,
+              platform_default: true,
+            },
+          ],
+        },
+        selectedGroup: {
+          addRoles: {
+            roles: [],
+            pagination: {
+              count: 1,
+              limit: 10,
+              offset: 0,
+            },
+          },
+          uuid: '123',
+          name: 'Test group',
+          description: 'Description',
+          platform_default: true,
+          roleCount: 11,
+          roles: [
+            {
+              uuid: '123',
+              name: 'User role',
+              description: 'Description',
+              modified: '2020-03-31T19:06:06.682885Z',
+              system: true,
+              platform_default: true,
+            },
+          ],
+        },
+      },
+    };
   });
 
   afterEach(() => {

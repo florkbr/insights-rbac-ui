@@ -1273,7 +1273,8 @@ export default defineMessages({
   workspaceNamingGuidelines: {
     id: 'workspaceNamingGuidelines',
     description: 'Workspace naming guidelines hint',
-    defaultMessage: '{link} about the guidelines for naming your workspaces.',
+    defaultMessage:
+      'Use clear, descriptive workspace names like "Production North America" or "Project-X" to organize assets, control access, and simplify management.{link}',
   },
   workspaceDescriptionMaxLength: {
     id: 'workspaceDescriptionMaxLength',
@@ -1985,6 +1986,11 @@ export default defineMessages({
     description: 'Add permission label',
     defaultMessage: 'Add permission',
   },
+  systemRolesCantBeModified: {
+    id: 'systemRolesCantBeModified',
+    description: 'Tooltip message for disabled add permissions button on system roles',
+    defaultMessage: 'System roles can not be modified',
+  },
   selectPermissionsForRole: {
     id: 'selectPermissionsForRole',
     description: 'Select permissions for role label',
@@ -2271,6 +2277,11 @@ export default defineMessages({
     description: 'Resources defined for permission message',
     defaultMessage: 'Resources defined for the permission',
   },
+  filterByApplication: {
+    id: 'filterByApplication',
+    description: 'Filter by application',
+    defaultMessage: 'Filter by application...',
+  },
   filterByResource: {
     id: 'filterByResource',
     description: 'Filter by resource label',
@@ -2438,6 +2449,11 @@ export default defineMessages({
     id: 'loading',
     description: 'Loading temporary label',
     defaultMessage: 'Loading...',
+  },
+  loadingWorkspaces: {
+    id: 'loadingWorkspaces',
+    description: 'Loading workspaces label',
+    defaultMessage: 'Loading workspaces...',
   },
   noPermissions: {
     id: 'noPermissions',
